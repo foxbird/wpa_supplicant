@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="win_if_list/win_if_list.vcxproj" Id="9e87cd9c-60ce-4533-85cf-85ca3a9bf26a" />
+  <Project Path="wpa_supplicant/wpa_supplicant.vcxproj" Id="8bcfda77-aedc-4168-8897-5b73105bbb87" />
+  <Project Path="wpasvc/wpasvc.vcxproj" Id="e2a4a85f-ca77-406d-8abf-63ef94545acc" />
+</Solution>

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{8BCFDA77-AEDC-4168-8897-5B73105BBB87}</ProjectGuid>
+    <RootNamespace>wpa_supplicant</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>..\..\wpa_supplicant;..\..\src;..\..\src\utils;..\..\npcap-sdk-1.16\include;..\..\openssl-3.6.2\x86\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;CONFIG_WIN32_DEFAULTS;TLS_DEFAULT_CIPHERS="DEFAULT:!EXP:!LOW";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DisableSpecificWarnings>4244;4267;4311;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>wbemuuid.lib;ws2_32.lib;Crypt32.lib;Winscard.lib;Packet.lib;wpcap.lib;libssl.lib;libcrypto.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\npcap-sdk-1.16\Lib;..\..\openssl-3.6.2\x86\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <SubSystem>Console</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\wpa_supplicant;..\..\src;..\..\src\utils;..\..\npcap-sdk-1.16\include;..\..\openssl-3.6.2\x86\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;CONFIG_WIN32_DEFAULTS;TLS_DEFAULT_CIPHERS="DEFAULT:!EXP:!LOW";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <PrecompiledHeader />
+      <WarningLevel>Level3</WarningLevel>
+      <DisableSpecificWarnings>4244;4267;4311;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>wbemuuid.lib;ws2_32.lib;Crypt32.lib;Winscard.lib;Packet.lib;wpcap.lib;libssl.lib;libcrypto.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\npcap-sdk-1.16\Lib;..\..\openssl-3.6.2\x86\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <SubSystem>Console</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\crypto\crypto_openssl.c" />
+    <ClCompile Include="..\..\src\crypto\tls_openssl.c" />
+    <ClCompile Include="..\..\src\crypto\ms_funcs.c" />
+    <ClCompile Include="..\..\src\crypto\random.c" />
+    <ClCompile Include="..\..\src\crypto\sha256-prf.c" />
+    <ClCompile Include="..\..\src\crypto\sha1-prf.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\drivers\drivers.c" />
+    <ClCompile Include="..\..\src\drivers\driver_common.c" />
+    <ClCompile Include="..\..\src\drivers\driver_ndis.c" />
+    <ClCompile Include="..\..\src\drivers\driver_ndis_.c" />
+    <ClCompile Include="..\..\src\drivers\ndis_events.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\eapol_supp\eapol_supp_sm.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\eap_common\chap.c" />
+    <ClCompile Include="..\..\src\eap_common\eap_common.c" />
+    <ClCompile Include="..\..\src\eap_common\eap_peap_common.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\eap_peer\eap.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_gtc.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_leap.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_md5.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_methods.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_mschapv2.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_otp.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_peap.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_tls.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_tls_common.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_tnc.c" />
+    <ClCompile Include="..\..\src\eap_peer\eap_ttls.c" />
+    <ClCompile Include="..\..\src\eap_peer\mschapv2.c" />
+    <ClCompile Include="..\..\src\eap_peer\tncc.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\l2_packet\l2_packet_winpcap.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\rsn_supp\pmksa_cache.c" />
+    <ClCompile Include="..\..\src\rsn_supp\preauth.c" />
+    <ClCompile Include="..\..\src\rsn_supp\wpa.c" />
+    <ClCompile Include="..\..\src\rsn_supp\wpa_ie.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\utils\base64.c" />
+    <ClCompile Include="..\..\src\utils\bitfield.c" />
+    <ClCompile Include="..\..\src\utils\common.c" />
+    <ClCompile Include="..\..\src\utils\config.c">
+      <ObjectFileName>$(IntDir)utils_config.obj</ObjectFileName>
+    </ClCompile>
+    <ClCompile Include="..\..\src\utils\eloop_win.c" />
+    <ClCompile Include="..\..\src\utils\os_win32.c" />
+    <ClCompile Include="..\..\src\utils\pcsc_funcs.c" />
+    <ClCompile Include="..\..\src\utils\wpabuf.c" />
+    <ClCompile Include="..\..\src\utils\wpa_debug.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\common\ieee802_11_common.c" />
+    <ClCompile Include="..\..\src\common\wpa_common.c" />
+    <ClCompile Include="..\..\src\common\ptksa_cache.c" />
+    <ClCompile Include="..\..\src\common\hw_features_common.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\wpa_supplicant\bss.c" />
+    <ClCompile Include="..\..\wpa_supplicant\bssid_ignore.c" />
+    <ClCompile Include="..\..\wpa_supplicant\config.c" />
+    <ClCompile Include="..\..\wpa_supplicant\config_file.c" />
+    <ClCompile Include="..\..\wpa_supplicant\ctrl_iface.c" />
+    <ClCompile Include="..\..\wpa_supplicant\ctrl_iface_named_pipe.c" />
+    <ClCompile Include="..\..\wpa_supplicant\eap_register.c" />
+    <ClCompile Include="..\..\wpa_supplicant\events.c" />
+    <ClCompile Include="..\..\wpa_supplicant\main.c" />
+    <ClCompile Include="..\..\wpa_supplicant\notify.c" />
+    <ClCompile Include="..\..\wpa_supplicant\scan.c" />
+    <ClCompile Include="..\..\wpa_supplicant\wpas_glue.c" />
+    <ClCompile Include="..\..\wpa_supplicant\op_classes.c" />
+    <ClCompile Include="..\..\wpa_supplicant\rrm.c" />
+    <ClCompile Include="..\..\wpa_supplicant\robust_av.c" />
+    <ClCompile Include="..\..\wpa_supplicant\wmm_ac.c" />
+    <ClCompile Include="..\..\wpa_supplicant\wpa_supplicant.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

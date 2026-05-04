@@ -40,6 +40,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <sys/stat.h>
+#include <wincrypt.h>
+#include <bcrypt.h>
 
 #define open _open
 #define fdopen _fdopen

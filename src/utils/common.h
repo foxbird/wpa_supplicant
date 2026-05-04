@@ -401,10 +401,6 @@ typedef int socklen_t;
 #define inline __inline
 #endif
 
-#ifndef __func__
-#define __func__ "__func__ not defined"
-#endif
-
 #ifndef bswap_16
 #define bswap_16(a) ((((u16) (a) << 8) & 0xff00) | (((u16) (a) >> 8) & 0xff))
 #endif

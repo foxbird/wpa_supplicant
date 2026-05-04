@@ -417,13 +417,52 @@ static int cryptoapi_rsa_priv_enc(int flen, const unsigned char *from,
 
 	if (priv == NULL) {
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,
-		       ERR_R_PASSED_NULL_PARAMETER);
+			   ERR_R_PASSED_NULL_PARAMETER);
 		return 0;
 	}
 
+	// Handler for NCrypt type CNG keys
+	if (priv->key_spec == CERT_NCRYPT_KEY_SPEC) {
+		NCRYPT_KEY_HANDLE hKey = (NCRYPT_KEY_HANDLE) priv->crypt_prov;
+		DWORD cbResult = 0;
+		SECURITY_STATUS status;
+
+		if (padding == RSA_NO_PADDING) {
+			wpa_printf(MSG_INFO,
+				   "CryptoAPI: unexpected RSA_NO_PADDING in "
+				   "priv_enc for CNG key");
+			RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,
+				   RSA_R_UNKNOWN_PADDING_TYPE);
+			return 0;
+		} else if (padding == RSA_PKCS1_PADDING) {
+			BCRYPT_PKCS1_PADDING_INFO paddingInfo;
+			paddingInfo.pszAlgId = NULL;
+			status = NCryptSignHash(hKey, &paddingInfo,
+						(PBYTE) from, flen,
+						(PBYTE) to, RSA_size(rsa),
+						&cbResult,
+						BCRYPT_PAD_PKCS1);
+		} else {
+			RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,
+				   RSA_R_UNKNOWN_PADDING_TYPE);
+			return 0;
+		}
+
+		if (FAILED(status)) {
+			wpa_printf(MSG_DEBUG,
+				   "CryptoAPI: NCryptSignHash failed: 0x%08x",
+				   (unsigned int) status);
+			RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,
+				   ERR_R_INTERNAL_ERROR);
+			return 0;
+		}
+		return (int) cbResult;
+	}
+
+	/* Legacy CAPI path: only supports PKCS#1 with MD5+SHA1 */
 	if (padding != RSA_PKCS1_PADDING) {
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,
-		       RSA_R_UNKNOWN_PADDING_TYPE);
+			   RSA_R_UNKNOWN_PADDING_TYPE);
 		return 0;
 	}
 
@@ -431,7 +470,7 @@ static int cryptoapi_rsa_priv_enc(int flen, const unsigned char *from,
 		wpa_printf(MSG_INFO, "%s - only MD5-SHA1 hash supported",
 			   __func__);
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,
-		       RSA_R_INVALID_MESSAGE_LENGTH);
+			   RSA_R_INVALID_MESSAGE_LENGTH);
 		return 0;
 	}
 
@@ -443,7 +482,7 @@ static int cryptoapi_rsa_priv_enc(int flen, const unsigned char *from,
 
 	len = sizeof(hash_size);
 	if (!CryptGetHashParam(hash, HP_HASHSIZE, (BYTE *) &hash_size, &len,
-			       0)) {
+				   0)) {
 		cryptoapi_error("CryptGetHashParam failed");
 		goto err;
 	}
@@ -452,7 +491,7 @@ static int cryptoapi_rsa_priv_enc(int flen, const unsigned char *from,
 		wpa_printf(MSG_INFO, "CryptoAPI: Invalid hash size (%u != %d)",
 			   (unsigned) hash_size, flen);
 		RSAerr(RSA_F_RSA_EAY_PRIVATE_ENCRYPT,
-		       RSA_R_INVALID_MESSAGE_LENGTH);
+			   RSA_R_INVALID_MESSAGE_LENGTH);
 		goto err;
 	}
 	if (!CryptSetHashParam(hash, HP_HASHVAL, (BYTE * ) from, 0)) {
@@ -497,7 +536,10 @@ static void cryptoapi_free_data(struct cryptoapi_rsa_data *priv)
 	if (priv == NULL)
 		return;
 	if (priv->crypt_prov && priv->free_crypt_prov)
-		CryptReleaseContext(priv->crypt_prov, 0);
+		if (priv->key_spec == CERT_NCRYPT_KEY_SPEC)
+			NCryptFreeObject(priv->crypt_prov);
+		else
+			CryptReleaseContext(priv->crypt_prov, 0);
 	if (priv->cert)
 		CertFreeCertificateContext(priv->cert);
 	os_free(priv);
@@ -559,6 +601,98 @@ static const CERT_CONTEXT * cryptoapi_find_cert(const char *name, DWORD store)
 }
 
 
+// Function pointer for original RSA sign function
+static int (*cryptoapi_default_rsa_sign)(EVP_PKEY_CTX *ctx,
+					  unsigned char *sig, size_t *siglen,
+					  const unsigned char *tbs,
+					  size_t tbslen) = NULL;
+
+// Custom RSA sign for RSA-PSS using CNG, called via EVP_PKEY_METHOD override
+static int cryptoapi_pkey_rsa_sign(EVP_PKEY_CTX *ctx,
+					unsigned char *sig, size_t *siglen,
+					const unsigned char *tbs, size_t tbslen)
+{
+	EVP_PKEY *pkey = EVP_PKEY_CTX_get0_pkey(ctx);
+	const RSA *rsa = EVP_PKEY_get0_RSA(pkey);
+	const RSA_METHOD *meth;
+	struct cryptoapi_rsa_data *priv = NULL;
+	int pad_mode = RSA_PKCS1_PADDING;
+
+	if (rsa) {
+		meth = RSA_get_method(rsa);
+		if (meth)
+			priv = (struct cryptoapi_rsa_data *)
+				RSA_meth_get0_app_data(meth);
+	}
+
+	if (priv == NULL || priv->key_spec != CERT_NCRYPT_KEY_SPEC ||
+		EVP_PKEY_CTX_get_rsa_padding(ctx, &pad_mode) <= 0 ||
+		pad_mode != RSA_PKCS1_PSS_PADDING) {
+		if (cryptoapi_default_rsa_sign)
+			return cryptoapi_default_rsa_sign(ctx, sig, siglen,
+							  tbs, tbslen);
+		return -1;
+	}
+
+	{
+		NCRYPT_KEY_HANDLE hKey = (NCRYPT_KEY_HANDLE) priv->crypt_prov;
+		BCRYPT_PSS_PADDING_INFO pssPaddingInfo;
+		const EVP_MD *md = NULL;
+		int saltlen = -1;
+		DWORD cbResult = 0;
+		SECURITY_STATUS status;
+
+		if (EVP_PKEY_CTX_get_signature_md(ctx, &md) <= 0 || md == NULL) {
+			wpa_printf(MSG_INFO, "CryptoAPI: PSS sign: could not "
+				   "get signature MD");
+			return -1;
+		}
+
+		EVP_PKEY_CTX_get_rsa_pss_saltlen(ctx, &saltlen);
+		if (saltlen < 0)
+			saltlen = EVP_MD_get_size(md);
+
+		switch (EVP_MD_get_type(md)) {
+		case NID_sha256:
+			pssPaddingInfo.pszAlgId = BCRYPT_SHA256_ALGORITHM;
+			break;
+		case NID_sha384:
+			pssPaddingInfo.pszAlgId = BCRYPT_SHA384_ALGORITHM;
+			break;
+		case NID_sha512:
+			pssPaddingInfo.pszAlgId = BCRYPT_SHA512_ALGORITHM;
+			break;
+		case NID_sha1:
+			pssPaddingInfo.pszAlgId = BCRYPT_SHA1_ALGORITHM;
+			break;
+		default:
+			wpa_printf(MSG_INFO, "CryptoAPI: PSS sign: unsupported "
+				   "hash NID %d", EVP_MD_get_type(md));
+			return -1;
+		}
+		pssPaddingInfo.cbSalt = (ULONG) saltlen;
+
+		if (sig == NULL) {
+			*siglen = RSA_size(rsa);
+			return 1;
+		}
+
+		status = NCryptSignHash(hKey, &pssPaddingInfo,
+					(PBYTE) tbs, (DWORD) tbslen,
+					sig, (DWORD) *siglen,
+					&cbResult, BCRYPT_PAD_PSS);
+		if (FAILED(status)) {
+			wpa_printf(MSG_DEBUG,
+				   "CryptoAPI: NCryptSignHash (PSS) failed: "
+				   "0x%08x", (unsigned int) status);
+			return -1;
+		}
+		*siglen = (size_t) cbResult;
+		return 1;
+	}
+}
+
+
 static int tls_cryptoapi_cert(SSL *ssl, const char *name)
 {
 	X509 *cert = NULL;
@@ -607,7 +741,7 @@ static int tls_cryptoapi_cert(SSL *ssl, const char *name)
 	}
 
 	if (!CryptAcquireCertificatePrivateKey(priv->cert,
-						   CRYPT_ACQUIRE_COMPARE_KEY_FLAG,
+						   CRYPT_ACQUIRE_COMPARE_KEY_FLAG | CRYPT_ACQUIRE_ALLOW_NCRYPT_KEY_FLAG,
 						   NULL, &priv->crypt_prov,
 						   &priv->key_spec,
 						   &priv->free_crypt_prov)) {
@@ -637,28 +771,25 @@ static int tls_cryptoapi_cert(SSL *ssl, const char *name)
 		goto err;
 	}
 
-	{
-		EVP_PKEY *pkey = X509_get0_pubkey(cert);
-		const BIGNUM *pub_n, *pub_e;
-		BIGNUM *rsa_n, *rsa_e;
+	EVP_PKEY *pkey = X509_get0_pubkey(cert);
+	const BIGNUM *pub_n, *pub_e;
+	BIGNUM *rsa_n, *rsa_e;
 
-		pub_rsa = pkey ? (RSA *) EVP_PKEY_get0_RSA(pkey) : NULL;
-		if (pub_rsa == NULL) {
-			wpa_printf(MSG_INFO, "CryptoAPI: Could not get RSA "
-				   "public key from certificate");
-			goto err;
-		}
-		RSA_get0_key(pub_rsa, &pub_n, &pub_e, NULL);
-		rsa_n = BN_dup(pub_n);
-		rsa_e = BN_dup(pub_e);
-		X509_free(cert);
-		cert = NULL;
-		if (rsa_n == NULL || rsa_e == NULL ||
-			!RSA_set0_key(rsa, rsa_n, rsa_e, NULL)) {
-			BN_free(rsa_n);
-			BN_free(rsa_e);
-			goto err;
-		}
+	pub_rsa = pkey ? (RSA *) EVP_PKEY_get0_RSA(pkey) : NULL;
+	if (pub_rsa == NULL) {
+		wpa_printf(MSG_INFO, "CryptoAPI: Could not get RSA "
+				"public key from certificate");
+		goto err;
+	}
+	RSA_get0_key(pub_rsa, &pub_n, &pub_e, NULL);
+	rsa_n = BN_dup(pub_n);
+	rsa_e = BN_dup(pub_e);
+	X509_free(cert);
+	cert = NULL;
+	if (rsa_n == NULL || rsa_e == NULL || !RSA_set0_key(rsa, rsa_n, rsa_e, NULL)) {
+		BN_free(rsa_n);
+		BN_free(rsa_e);
+		goto err;
 	}
 
 	if (!RSA_set_method(rsa, rsa_meth))
@@ -666,6 +797,33 @@ static int tls_cryptoapi_cert(SSL *ssl, const char *name)
 
 	if (!SSL_use_RSAPrivateKey(ssl, rsa))
 		goto err;
+
+	if (priv->key_spec == CERT_NCRYPT_KEY_SPEC && cryptoapi_default_rsa_sign == NULL) {
+
+		const EVP_PKEY_METHOD *def = EVP_PKEY_meth_find(EVP_PKEY_RSA);
+		EVP_PKEY_METHOD *pmeth = def ?
+			EVP_PKEY_meth_new(EVP_PKEY_RSA, 0) : NULL;
+		if (pmeth) {
+			EVP_PKEY_meth_copy(pmeth, def);
+			EVP_PKEY_meth_get_sign(def, NULL, &cryptoapi_default_rsa_sign);
+			EVP_PKEY_meth_set_sign(pmeth, NULL, cryptoapi_pkey_rsa_sign);
+			if (EVP_PKEY_meth_add0(pmeth) != 1) {
+				wpa_printf(MSG_WARNING, "CryptoAPI: failed to "
+					   "install EVP_PKEY_METHOD for PSS");
+				EVP_PKEY_meth_free(pmeth);
+				cryptoapi_default_rsa_sign = NULL;
+			} else {
+				wpa_printf(MSG_DEBUG, "CryptoAPI: installed "
+					   "EVP_PKEY_METHOD for RSA-PSS "
+					   "signing via CNG");
+			}
+		} else {
+			wpa_printf(MSG_WARNING, "CryptoAPI: could not find "
+				   "default EVP_PKEY_METHOD for RSA; "
+				   "RSA-PSS signing may fail");
+		}
+	}
+
 	RSA_free(rsa);
 
 	return 0;
